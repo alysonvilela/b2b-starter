@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: medusa
+    volumes:
+      - ../files/postgres:/var/lib/postgresql/data
+    networks:
+      - dokploy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medusa -d medusa"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - ../files/redis:/data
+    networks:
+      - dokploy-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD}@postgres:5432/medusa
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      STORE_CORS: https://${STOREFRONT_DOMAIN}
+      ADMIN_CORS: https://${BACKEND_DOMAIN}
+      AUTH_CORS: https://${STOREFRONT_DOMAIN},https://${BACKEND_DOMAIN}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "9000"
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.b2b-backend.rule=Host(`${BACKEND_DOMAIN}`)"
+      - "traefik.http.routers.b2b-backend.entrypoints=websecure"
+      - "traefik.http.routers.b2b-backend.tls.certResolver=letsencrypt"
+      - "traefik.http.services.b2b-backend.loadbalancer.server.port=9000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: always
+
+  # Phase 2 only — enable by setting COMPOSE_PROFILES=storefront in Dokploy env vars
+  storefront:
+    profiles:
+      - storefront
+    build:
+      context: .
+      dockerfile: Dockerfile.storefront
+      args:
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: https://${BACKEND_DOMAIN}
+        NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_BASE_URL: https://${STOREFRONT_DOMAIN}
+        NEXT_PUBLIC_DEFAULT_REGION: ${NEXT_PUBLIC_DEFAULT_REGION:-us}
+        REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+    environment:
+      # next.config.js checks this at startup — must also be a runtime env var
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+      NODE_ENV: production
+    depends_on:
+      - backend
+    expose:
+      - "8000"
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.b2b-storefront.rule=Host(`${STOREFRONT_DOMAIN}`)"
+      - "traefik.http.routers.b2b-storefront.entrypoints=websecure"
+      - "traefik.http.routers.b2b-storefront.tls.certResolver=letsencrypt"
+      - "traefik.http.services.b2b-storefront.loadbalancer.server.port=8000"
+    restart: always
+
+networks:
+  dokploy-network:
+    external: true

@@ -1,0 +1,27 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+# Install all deps (dev included — needed by medusa build)
+FROM base AS deps
+WORKDIR /workspace
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc turbo.json ./
+COPY apps/backend/package.json ./apps/backend/
+COPY apps/storefront/package.json ./apps/storefront/
+RUN pnpm install --frozen-lockfile
+
+# Build backend → .medusa/server + .medusa/admin
+FROM deps AS builder
+WORKDIR /workspace
+COPY . .
+RUN pnpm --filter @b2b-starter/backend build
+
+# Production runner — self-contained from .medusa/server
+FROM node:20-alpine AS runner
+WORKDIR /app
+COPY --from=builder /workspace/apps/backend/.medusa/server .
+RUN npm install --omit=dev --no-audit --no-fund
+COPY scripts/backend-entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+ENV NODE_ENV=production
+EXPOSE 9000
+ENTRYPOINT ["./entrypoint.sh"]
