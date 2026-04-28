@@ -49,6 +49,8 @@ services:
       AUTH_CORS: https://${STOREFRONT_DOMAIN},https://${BACKEND_DOMAIN}
       NODE_ENV: production
       PORT: ${BACKEND_PORT:-9000}
+      MEDUSA_ADMIN_EMAIL: ${MEDUSA_ADMIN_EMAIL:-}
+      MEDUSA_ADMIN_PASSWORD: ${MEDUSA_ADMIN_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
