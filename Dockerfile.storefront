@@ -33,7 +33,9 @@ WORKDIR /app
 COPY --from=builder /deploy/storefront ./
 # Overlay built .next on top of deploy dir (pnpm deploy copies source, not build artifacts)
 COPY --from=builder /workspace/apps/storefront/.next ./.next
+ARG PORT=8000
 ENV NODE_ENV=production
-EXPOSE 8000
+ENV PORT=$PORT
+EXPOSE $PORT
 # next.config.js checks NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY at startup; pass via compose environment
-CMD ["node_modules/.bin/next", "start", "-p", "8000"]
+CMD ["node_modules/.bin/next", "start"]

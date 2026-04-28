@@ -22,6 +22,8 @@ COPY --from=builder /workspace/apps/backend/.medusa/server .
 RUN npm install --omit=dev --no-audit --no-fund
 COPY scripts/backend-entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
+ARG PORT=9000
 ENV NODE_ENV=production
-EXPOSE 9000
+ENV PORT=$PORT
+EXPOSE $PORT
 ENTRYPOINT ["./entrypoint.sh"]
