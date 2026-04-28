@@ -10,6 +10,7 @@ const redisUrl = process.env.REDIS_URL;
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    redisUrl,
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
@@ -17,6 +18,11 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },
+    workerMode: process.env.MEDUSA_WORKER_MODE as any,
+  },
+  admin: {
+    disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
+    backendUrl: process.env.MEDUSA_BACKEND_URL,
   },
   modules: {
     [COMPANY_MODULE]: {
@@ -30,39 +36,17 @@ module.exports = defineConfig({
     },
     ...(redisUrl
       ? {
+          [Modules.CACHE]: {
+            resolve: "@medusajs/cache-redis",
+            options: { redisUrl },
+          },
           [Modules.EVENT_BUS]: {
-            resolve: "@medusajs/medusa/event-bus-redis",
+            resolve: "@medusajs/event-bus-redis",
             options: { redisUrl },
           },
           [Modules.WORKFLOW_ENGINE]: {
-            resolve: "@medusajs/medusa/workflow-engine-redis",
-            options: { redis: { redisUrl } },
-          },
-          [Modules.CACHE]: {
-            resolve: "@medusajs/medusa/caching",
-            options: {
-              providers: [
-                {
-                  resolve: "@medusajs/caching-redis",
-                  id: "caching-redis",
-                  is_default: true,
-                  options: { redisUrl },
-                },
-              ],
-            },
-          },
-          [Modules.LOCKING]: {
-            resolve: "@medusajs/medusa/locking",
-            options: {
-              providers: [
-                {
-                  resolve: "@medusajs/medusa/locking-redis",
-                  id: "locking-redis",
-                  is_default: true,
-                  options: { redisUrl },
-                },
-              ],
-            },
+            resolve: "@medusajs/workflow-engine-redis",
+            options: { redis: { url: redisUrl } },
           },
         }
       : {}),
