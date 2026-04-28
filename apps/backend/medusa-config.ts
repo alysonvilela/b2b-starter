@@ -17,6 +17,11 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
+      cookieOptions: {
+        secure: process.env.COOKIE_SECURE !== "false",
+        sameSite: "lax",
+        httpOnly: true,
+      },
     },
     workerMode: process.env.MEDUSA_WORKER_MODE as any,
   },
