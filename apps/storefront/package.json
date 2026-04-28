@@ -8,9 +8,9 @@
     "medusa-b2b-storefront"
   ],
   "scripts": {
-    "dev": "next dev -p 8000",
+    "dev": "next dev",
     "build": "next build",
-    "start": "next start -p 8000",
+    "start": "next start",
     "lint": "next lint",
     "clean": "rm -rf .next node_modules",
     "analyze": "ANALYZE=true next build"

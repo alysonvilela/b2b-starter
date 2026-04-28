@@ -1,0 +1,41 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+# Install all deps (dev included — needed by next build)
+FROM base AS deps
+WORKDIR /workspace
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc turbo.json ./
+COPY apps/backend/package.json ./apps/backend/
+COPY apps/storefront/package.json ./apps/storefront/
+RUN pnpm install --frozen-lockfile
+
+# Build storefront; NEXT_PUBLIC_* baked into bundle at build time
+FROM deps AS builder
+WORKDIR /workspace
+ARG NEXT_PUBLIC_MEDUSA_BACKEND_URL
+ARG NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_BASE_URL
+ARG NEXT_PUBLIC_DEFAULT_REGION=us
+ARG REVALIDATE_SECRET
+ENV NEXT_PUBLIC_MEDUSA_BACKEND_URL=$NEXT_PUBLIC_MEDUSA_BACKEND_URL
+ENV NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
+ENV NEXT_PUBLIC_DEFAULT_REGION=$NEXT_PUBLIC_DEFAULT_REGION
+ENV REVALIDATE_SECRET=$REVALIDATE_SECRET
+COPY . .
+RUN pnpm --filter @b2b-starter/storefront build
+# Create standalone deploy dir with prod deps only
+RUN pnpm deploy --filter @b2b-starter/storefront --prod /deploy/storefront
+
+# Production runner
+FROM node:20-alpine AS runner
+WORKDIR /app
+COPY --from=builder /deploy/storefront ./
+# Overlay built .next on top of deploy dir (pnpm deploy copies source, not build artifacts)
+COPY --from=builder /workspace/apps/storefront/.next ./.next
+ARG PORT=8000
+ENV NODE_ENV=production
+ENV PORT=$PORT
+EXPOSE $PORT
+# next.config.js checks NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY at startup; pass via compose environment
+CMD ["node_modules/.bin/next", "start"]
